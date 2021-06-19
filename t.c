@@ -125,6 +125,7 @@ batch_ioctl( struct msr_batch_array *a ){
 int main(){
 	struct msr_batch_array a;
 	init_poll_energy( &a );
+	a.numops=10000;		// 10k per second, max is ONE_GiB/sizeof(msr_batch_array) ~ 15M.
 	batch_ioctl( &a );
 	print_msr_data( &a );
 	batch_ioctl( NULL );
