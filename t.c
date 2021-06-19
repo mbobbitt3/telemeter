@@ -78,9 +78,9 @@ print_msr_data( struct msr_batch_array *a ){
 	for( uint64_t i=0; i<a->numops; i++ ){
 		fprintf( stdout, 
 			//cpu        msrcmd        err       msr           msrdata        wmask
-			"%02"PRIu16" 0x04%"PRIx16" %"PRId32" 0x08%"PRIx32" 0x016%"PRIx64" 0x%016"PRIx64
+			"%02"PRIu16" 0x%04"PRIx16" %"PRId32" 0x%08"PRIx32" 0x%016"PRIx64" 0x%016"PRIx64
 			//aperf0         mperf0         aperf1         mperf1         msrdata1
-			" 0x%016"PRIx64" 0x%016"PRIx64" 0x%016"PRIx64" 0x%016"PRIx64" 0x%016"PRIu64"\n",
+			" 0x%016"PRIx64" 0x%016"PRIx64" 0x%016"PRIx64" 0x%016"PRIx64" 0x%016"PRIx64"\n",
 			(uint16_t)(a->ops[i].cpu),
 			(uint16_t)(a->ops[i].msrcmd),
 			( int32_t)(a->ops[i].err),
@@ -125,7 +125,7 @@ batch_ioctl( struct msr_batch_array *a ){
 int main(){
 	struct msr_batch_array a;
 	init_poll_energy( &a );
-	a.numops=10000;		// 10k per second, max is ONE_GiB/sizeof(msr_batch_array) ~ 15M.
+	a.numops=50000;		// 10k per second, max is ONE_GiB/sizeof(msr_batch_array) ~ 15M.
 	batch_ioctl( &a );
 	print_msr_data( &a );
 	batch_ioctl( NULL );
