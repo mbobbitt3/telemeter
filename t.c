@@ -17,6 +17,7 @@
 #include <fcntl.h>			// open()
 #include <sys/ioctl.h>			// ioctl()
 #include <unistd.h>			// close()
+#include <omp.h>			// omp_get_thread_id()
 #include "../msr-safe/msr_safe.h"	// msr structs and ioctls
 
 
@@ -122,12 +123,36 @@ batch_ioctl( struct msr_batch_array *a ){
 	}
 }
 
-int main(){
-	struct msr_batch_array a;
-	init_poll_energy( &a );
-	a.numops=50000;		// 10k per second, max is ONE_GiB/sizeof(msr_batch_array) ~ 15M.
-	batch_ioctl( &a );
-	print_msr_data( &a );
+void
+telemeter_init( struct msr_batch_array *a ){
+	init_poll_energy( a );
+	a->numops=50000;		// 10k per second, max is ONE_GiB/sizeof(msr_batch_array) ~ 15M.
+}
+
+void
+telemeter( struct msr_batch_array *a ){
+	batch_ioctl( a );
 	batch_ioctl( NULL );
+}
+
+void
+payload(){
+}
+
+int main(){
+	int tid;
+	struct msr_batch_array a;
+	telemeter_init( &a );
+	omp_set_num_threads(2);
+#pragma omp parallel num_threads(2)
+	{
+		tid = omp_get_thread_num();
+		if( 0 == tid ){
+			telemeter( &a );
+		}else{
+			payload();
+		}
+	}
+	print_msr_data( &a );
 	return 0;
 }
