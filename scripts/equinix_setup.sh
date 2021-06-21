@@ -19,7 +19,7 @@
 # Sets up an Equinix Metal instance for development.
 export MY_USERNAME=rountree
 export PACKAGES="manpages manpages-dev manpages-posix manpages-posix-dev vim git tmux msr-tools time apt-file \
-	build-essential libhugetlbfs-bin libhugetlbfs-dev libhugetlbfs0 clang-11 r-base libomp-11-doc \
+	build-essential libhugetlbfs-bin libhugetlbfs-dev libhugetlbfs0 clang-10 r-base libomp-11-doc \
 	libomp-11-dev libssl-dev libssl-doc numactl"
 
 # removed openssl
