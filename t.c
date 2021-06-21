@@ -142,7 +142,7 @@ batch_ioctl( struct msr_batch_array *a ){
 void
 telemeter_init( struct msr_batch_array *a ){
 	init_poll_energy( a );
-	a->numops=50000;		// 10k per second, max is ONE_GiB/sizeof(msr_batch_array) ~ 15M.
+	a->numops=5000;		// 1k per second, max is ONE_GiB/sizeof(msr_batch_array) ~ 15M.
 }
 
 double
@@ -240,6 +240,8 @@ int main(){
 
 	telemeter_init( &a );
 	payload_init( &c );
+
+	c.key[1] = 0x11;
 
 	omp_set_num_threads(2);
 #pragma omp parallel shared(elapsed) num_threads(2)
