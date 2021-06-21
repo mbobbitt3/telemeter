@@ -5,12 +5,14 @@
  * This software has not yet been reviewed or released for distribution.
  ******************************************************************************/
 
+#define _DEFAULT_SOURCE			// required for random(), srandom()
+#include <stdlib.h>			// exit(), random(), srandom()
+#include <string.h>			// memset()
 #include <stdio.h>			// fprintf(), perror()
 #include <hugetlbfs.h>			// get_huge_pages()
 #include <stdint.h>			// uint8_t and friends
 #include <inttypes.h>			// PRIx8 and friends
 #include <errno.h>			// definition of errno
-#include <stdlib.h>			// exit()
 #include <stdbool.h>			// bool
 #include <sys/types.h>			// open()
 #include <sys/stat.h>			// open()
@@ -18,11 +20,25 @@
 #include <sys/ioctl.h>			// ioctl()
 #include <unistd.h>			// close()
 #include <omp.h>			// omp_get_thread_id()
+#include <openssl/evp.h>		// EVP_CIPHER_CTX_new(), EVP_EncryptInit_ex
+#include <sys/time.h>			// gettimeofday()
 #include "../msr-safe/msr_safe.h"	// msr structs and ioctls
 
 
 #define ONE_GiB ( size_t )(1024ULL*1024*1024)
 #define TELEMETRY_CPU (13)		// Run msr batches here.
+#define KEY_LENGTH   (256)		// Must be a multiple of sizeof( long int )
+#define IV_LENGTH    (128)		// Must be a multiple of sizeof( long int )
+
+struct crypt{
+	unsigned char key[256];
+	unsigned char iv[128];
+	unsigned char *clear_text;
+	unsigned char *encrypted_text;
+	EVP_CIPHER_CTX *ctx;
+	int out_len;
+	int in_len;
+};
 
 void*
 allocate_GiB_pages( size_t n_GiB ){
@@ -129,30 +145,119 @@ telemeter_init( struct msr_batch_array *a ){
 	a->numops=50000;		// 10k per second, max is ONE_GiB/sizeof(msr_batch_array) ~ 15M.
 }
 
-void
+double
 telemeter( struct msr_batch_array *a ){
+	struct timeval start, stop;
+	gettimeofday( &start, NULL );
 	batch_ioctl( a );
+	gettimeofday( &stop, NULL );
+	return (stop.tv_sec - start.tv_sec) + (stop.tv_usec - start.tv_usec)/1000000.0;
+}
+
+void
+telemeter_finalize(){
 	batch_ioctl( NULL );
 }
 
 void
-payload(){
+payload_init( struct crypt *c ){
+	// Allocate 1GiB for cleartext and encrypted text.
+	c->clear_text = allocate_GiB_pages( 1 );	
+	c->encrypted_text = allocate_GiB_pages( 2 );	// Massive overkill.
+
+	// Initialize the random number generator.
+	srandom( 13 );
+	
+	// Randomize the cleartext buffer.
+	for( uint64_t i=0; i<(ONE_GiB/sizeof(long int)); i++ ){
+		((long int*)(c->clear_text))[i] = random();
+	}
+
+	// Zero out the encrypted text buffer.
+	memset( c->encrypted_text, 0, ONE_GiB );	// Necessary?
+
+	// Set the key to a random number
+	for( uint64_t i=0; i<(KEY_LENGTH/sizeof(long int)); i++ ){
+		((long int*)(c->key))[i] = random();
+	}
+
+	// Set the initialization vector to a random number.
+	for( uint64_t i=0; i<(IV_LENGTH/sizeof(long int)); i++ ){
+		((long int*)(c->iv))[i] = random();
+	}
+
+	// Get a new context.
+	c->ctx = EVP_CIPHER_CTX_new();
+	if( !(c->ctx) ){
+		fprintf( stderr, "%s:%d EVP_CIPHER_CTX_new() failed, returned NULL.\n", __FILE__, __LINE__ );
+		exit( -1 );
+	}
+
+	// Initialize the encryption algorithm.
+	int rc = EVP_EncryptInit_ex( 
+			c->ctx, 		// EVP_CIPHER_CTX*
+			EVP_aes_256_cbc(),	// EVP_CIPHER*
+			NULL,			// ENGINE*
+			c->key,			// const unsigned char*
+			c->iv);			// const unsigned char*
+	if( !rc ){
+		fprintf( stderr, "%s:%d EVP_EncryptInit_ex() failed, returned 0.\n", __FILE__, __LINE__ );
+		exit( -1 );
+	}
+
+	return;	
+}
+
+
+double
+payload(struct crypt *c){
+	struct timeval start, stop;
+	gettimeofday( &start, NULL );
+	int rc = EVP_EncryptUpdate(
+			c->ctx,			// EVP_CIPHER_CTX*
+			c->encrypted_text,	// unsigned char *out
+			&(c->out_len),		// int *outl
+			c->clear_text,		// const unsigned char *in
+			(int)ONE_GiB);		// int inl
+	if( !rc ){
+		fprintf( stderr, "%s:%d EVP_EncryptUpdate() failed, returned 0.\n", __FILE__, __LINE__ );
+		exit( -1 );
+	}
+	gettimeofday( &stop, NULL );
+	return (stop.tv_sec - start.tv_sec) + (stop.tv_usec - start.tv_usec)/1000000.0;
+}
+
+void
+payload_finalize(struct crypt *c){
+	EVP_CIPHER_CTX_free( c->ctx );
 }
 
 int main(){
 	int tid;
 	struct msr_batch_array a;
+	struct crypt c;
+	double elapsed[2];
+
 	telemeter_init( &a );
+	payload_init( &c );
+
 	omp_set_num_threads(2);
-#pragma omp parallel num_threads(2)
+#pragma omp parallel shared(elapsed) num_threads(2)
 	{
 		tid = omp_get_thread_num();
 		if( 0 == tid ){
-			telemeter( &a );
+			elapsed[0] = telemeter( &a );
 		}else{
-			payload();
+			elapsed[1] = payload( &c );
 		}
 	}
+	fprintf( stderr, "%s:%d Telemeter elapsed seconds:  %lf\n", __FILE__, __LINE__, elapsed[0] );
+	fprintf( stderr, "%s:%d Payload elapsed seconds:    %lf\n", __FILE__, __LINE__, elapsed[1] );
+
+	telemeter_finalize();
+	payload_finalize( &c );
+
 	print_msr_data( &a );
+
 	return 0;
 }
