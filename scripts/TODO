@@ -1,0 +1,5 @@
+1. Remove the hard-coded "rountree" username.
+2. Instead of the user owning /dev and /sys files, create a group and modify permissions accordingly.
+3. The first time the script does a "git clone" it asks about whether the remote address should be trusted.
+   Figure out a way of removing that check.
+4. FIXED:  Openssl man pages are not getting installed.  Installed libssl-dev and libssl-doc.
