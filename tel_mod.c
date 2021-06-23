@@ -73,8 +73,8 @@ free_GiB_pages( void *p ){
 void
 init_poll_energy( struct msr_batch_array *a ){
 	a->numops = ONE_GiB / sizeof( struct msr_batch_op );
-	a->ops = allocate_GiB_pages( 1 );
-	for( uint64_t i=0; i<a->numops; i++ ){
+	a->ops = allocate_GiB_pages( 4 );
+	for( uint64_t i=0; i<a->numops; i+=3 ){
 		a->ops[i].cpu		= TELEMETRY_CPU;
 		a->ops[i].msrcmd	= 0xf;	// Read + A/MPERF before and after.
 		a->ops[i].err		= 0;
@@ -86,18 +86,51 @@ init_poll_energy( struct msr_batch_array *a ){
 		a->ops[i].aperf1	= 0;
 		a->ops[i].mperf1	= 0;
 		a->ops[i].msrdata1	= 0;
+
+		a->ops[i+1].cpu		= TELEMETRY_CPU;
+		a->ops[i+1].msrcmd	= 0xf;	// Read + A/MPERF before and after.
+		a->ops[i+1].err		= 0;
+		a->ops[i+1].msr		= 0x619;// DRAM_ENERGY_STATUS
+		a->ops[i+1].msrdata	= 0;
+		a->ops[i+1].wmask	    = 0;
+
+
+		a->ops[i+2].cpu		= TELEMETRY_CPU;
+		a->ops[i+2].msrcmd	= 0xf;	// Read + A/MPERF before and after.
+		a->ops[i+2].err		= 0;
+		a->ops[i+2].msr		= 0x639;// PP0_ENERGY_STATUS
+		a->ops[i+2].msrdata	= 0;
+		a->ops[i+2].wmask	= 0;
+
+
+		a->ops[i+3].cpu		= TELEMETRY_CPU;
+		a->ops[i+3].msrcmd	= 0xf;	// Read + A/MPERF before and after.
+		a->ops[i+3].err		= 0;
+		a->ops[i+3].msr		= 0x198;// PERF_STATUS
+		a->ops[i+3].msrdata	= 0;
+		a->ops[i+3].wmask	= 0;
+
 	}
 }
 
 void
 print_msr_data( struct msr_batch_array *a ){
-	fprintf( stdout, "cpu msrcmd err msr msrdata wmask aperf0 mperf0 aperf1 mperf1 msrdata1\n" );
+	fprintf( stdout, "cpu msrcmd err msr msrdata wmask aperf0 mperf0 aperf1 mperf1 msrdata1 cpu619 msrcmd619 err619 msr619 msrdata619 cpu639 msrcmd639 err639 msr639 msrdata639 cpu198 msrcmd198 err198 msr198 msrdata198 \n" );
 	for( uint64_t i=0; i<a->numops; i++ ){
 		fprintf( stdout, 
 			//cpu        msrcmd        err       msr           msrdata        wmask
 			"%02"PRIu16" 0x%04"PRIx16" %"PRId32" 0x%08"PRIx32" 0x%016"PRIx64" 0x%016"PRIx64
 			//aperf0         mperf0         aperf1         mperf1         msrdata1
-			" 0x%016"PRIx64" 0x%016"PRIx64" 0x%016"PRIx64" 0x%016"PRIx64" 0x%016"PRIx64"\n",
+			" 0x%016"PRIx64" 0x%016"PRIx64" 0x%016"PRIx64" 0x%016"PRIx64" 0x%016"PRIx64
+		    //cpu619     //msrcmp619    //err619  //msr619     //msrdata619   
+			"%02"PRIu16" 0x%04"PRIx16" %"PRId32" 0x%08"PRIx32" 0x%016"PRIx64		
+		    //cpu639     //msrcmp639    //err639  //msr639     //msrdata639   
+			"%02"PRIu16" 0x%04"PRIx16" %"PRId32" 0x%08"PRIx32" 0x%016"PRIx64		
+		  
+		  	//cpu198     //msrcmp198    //err198  //msr198     //msrdata198   
+			"%02"PRIu16" 0x%04"PRIx16" %"PRId32" 0x%08"PRIx32" 0x%016"PRIx64	
+		  
+			"\n",
 			(uint16_t)(a->ops[i].cpu),
 			(uint16_t)(a->ops[i].msrcmd),
 			( int32_t)(a->ops[i].err),
@@ -108,7 +141,26 @@ print_msr_data( struct msr_batch_array *a ){
 			(uint64_t)(a->ops[i].mperf0),
 			(uint64_t)(a->ops[i].aperf1),
 			(uint64_t)(a->ops[i].mperf1),
-			(uint64_t)(a->ops[i].msrdata1)
+			(uint64_t)(a->ops[i].msrdata1),
+		
+			(uint16_t)(a->ops[i+1].cpu),
+			(uint16_t)(a->ops[i+1].msrcmd),
+			( int32_t)(a->ops[i+1].err),
+			(uint32_t)(a->ops[i+1].msr),
+			(uint64_t)(a->ops[i+1].msrdata),
+
+			(uint16_t)(a->ops[i+2].cpu),
+			(uint16_t)(a->ops[i+2].msrcmd),
+			( int32_t)(a->ops[i+2].err),
+			(uint32_t)(a->ops[i+2].msr),
+			(uint64_t)(a->ops[i+2].msrdata),
+				
+			(uint16_t)(a->ops[i+3].cpu),
+			(uint16_t)(a->ops[i+3].msrcmd),
+			( int32_t)(a->ops[i+3].err),
+			(uint32_t)(a->ops[i+3].msr),
+			(uint64_t)(a->ops[i+3].msrdata)
+		
 		);
 	}	
 }
