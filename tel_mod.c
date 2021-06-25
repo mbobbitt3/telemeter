@@ -71,10 +71,16 @@ free_GiB_pages( void *p ){
 }
 
 void
-init_poll_energy( struct msr_batch_array *a ){
+init_poll_energy( struct msr_batch_array *a, struct msr_batch_array *b, struct msr_batch_array *d ){
 	a->numops = ONE_GiB / sizeof( struct msr_batch_op );
-	a->ops = allocate_GiB_pages( 4 );
-	for( uint64_t i=0; i<a->numops; i+=3 ){
+	a->ops = allocate_GiB_pages( 1 );
+
+	b->numops = ONE_GiB / sizeof( struct msr_batch_op );
+	b->ops = allocate_GiB_pages( 1 );
+
+	d->numops = ONE_GiB / sizeof( struct msr_batch_op );
+	d->ops = allocate_GiB_pages( 1 );
+	for( uint64_t i = 0; i < a->numops; i++ ){
 		a->ops[i].cpu		= TELEMETRY_CPU;
 		a->ops[i].msrcmd	= 0xf;	// Read + A/MPERF before and after.
 		a->ops[i].err		= 0;
@@ -86,48 +92,39 @@ init_poll_energy( struct msr_batch_array *a ){
 		a->ops[i].aperf1	= 0;
 		a->ops[i].mperf1	= 0;
 		a->ops[i].msrdata1	= 0;
-
-		a->ops[i+1].cpu		= TELEMETRY_CPU;
-		a->ops[i+1].msrcmd	= 0xf;	// Read + A/MPERF before and after.
-		a->ops[i+1].err		= 0;
-		a->ops[i+1].msr		= 0x619;// DRAM_ENERGY_STATUS
-		a->ops[i+1].msrdata	= 0;
-		a->ops[i+1].wmask	    = 0;
-
-
-		a->ops[i+2].cpu		= TELEMETRY_CPU;
-		a->ops[i+2].msrcmd	= 0xf;	// Read + A/MPERF before and after.
-		a->ops[i+2].err		= 0;
-		a->ops[i+2].msr		= 0x639;// PP0_ENERGY_STATUS
-		a->ops[i+2].msrdata	= 0;
-		a->ops[i+2].wmask	= 0;
-
-
-		a->ops[i+3].cpu		= TELEMETRY_CPU;
-		a->ops[i+3].msrcmd	= 0xf;	// Read + A/MPERF before and after.
-		a->ops[i+3].err		= 0;
-		a->ops[i+3].msr		= 0x198;// PERF_STATUS
-		a->ops[i+3].msrdata	= 0;
-		a->ops[i+3].wmask	= 0;
+	}
+	for(uint64_t i = 0; i < b->numops; i++){
+		b->ops[i].cpu		= TELEMETRY_CPU;
+		b->ops[i].msrcmd	= 0x3;	// Read + A/MPERF before and after.
+		b->ops[i].err		= 0;
+		b->ops[i].msr		= 0x619;// DRAM_ENERGY_STATUS
+		b->ops[i].msrdata	= 0;
+		b->ops[i].wmask	= 0;
+	}
+	for(uint64_t i = 0; i < d->numops; i++){
+		d->ops[i].cpu		= TELEMETRY_CPU;
+		d->ops[i].msrcmd	= 0x3;	// Read + A/MPERF before and after.
+		d->ops[i].err		= 0;
+		d->ops[i].msr		= 0x198;// PERF_STATUS
+		d->ops[i].msrdata	= 0;
+		d->ops[i].wmask	= 0;
 
 	}
 }
 
 void
-print_msr_data( struct msr_batch_array *a ){
-	fprintf( stdout, "cpu msrcmd err msr msrdata wmask aperf0 mperf0 aperf1 mperf1 msrdata1 cpu619 msrcmd619 err619 msr619 msrdata619 cpu639 msrcmd639 err639 msr639 msrdata639 cpu198 msrcmd198 err198 msr198 msrdata198 \n" );
+print_msr_data( struct msr_batch_array *a, struct msr_batch_array *b, struct msr_batch_array *d ){
+	fprintf( stdout, "cpu msrcmd err msr msrdata wmask aperf0 mperf0 aperf1 mperf1 msrdata1 cpu619 msrcmd619 err619 msr619 msrdata619 cpu198 msrcmd198 err198 msr198 msrdata198 \n" );
 	for( uint64_t i=0; i<a->numops; i++ ){
 		fprintf( stdout, 
 			//cpu        msrcmd        err       msr           msrdata        wmask
 			"%02"PRIu16" 0x%04"PRIx16" %"PRId32" 0x%08"PRIx32" 0x%016"PRIx64" 0x%016"PRIx64
 			//aperf0         mperf0         aperf1         mperf1         msrdata1
 			" 0x%016"PRIx64" 0x%016"PRIx64" 0x%016"PRIx64" 0x%016"PRIx64" 0x%016"PRIx64
-		    //cpu619     //msrcmp619    //err619  //msr619     //msrdata619   
-			"%02"PRIu16" 0x%04"PRIx16" %"PRId32" 0x%08"PRIx32" 0x%016"PRIx64		
-		    //cpu639     //msrcmp639    //err639  //msr639     //msrdata639   
+		    //cpu619     //msrcmd619    //err619  //msr619     //msrdata619   
 			"%02"PRIu16" 0x%04"PRIx16" %"PRId32" 0x%08"PRIx32" 0x%016"PRIx64		
 		  
-		  	//cpu198     //msrcmp198    //err198  //msr198     //msrdata198   
+		  	//cpu198     //msrcmd198    //err198  //msr198     //msrdata198   
 			"%02"PRIu16" 0x%04"PRIx16" %"PRId32" 0x%08"PRIx32" 0x%016"PRIx64	
 		  
 			"\n",
@@ -143,30 +140,24 @@ print_msr_data( struct msr_batch_array *a ){
 			(uint64_t)(a->ops[i].mperf1),
 			(uint64_t)(a->ops[i].msrdata1),
 		
-			(uint16_t)(a->ops[i+1].cpu),
-			(uint16_t)(a->ops[i+1].msrcmd),
-			( int32_t)(a->ops[i+1].err),
-			(uint32_t)(a->ops[i+1].msr),
-			(uint64_t)(a->ops[i+1].msrdata),
+			(uint16_t)(b->ops[i].cpu),
+			(uint16_t)(b->ops[i].msrcmd),
+			( int32_t)(b->ops[i].err),
+			(uint32_t)(b->ops[i].msr),
+			(uint64_t)(b->ops[i].msrdata),
 
-			(uint16_t)(a->ops[i+2].cpu),
-			(uint16_t)(a->ops[i+2].msrcmd),
-			( int32_t)(a->ops[i+2].err),
-			(uint32_t)(a->ops[i+2].msr),
-			(uint64_t)(a->ops[i+2].msrdata),
-				
-			(uint16_t)(a->ops[i+3].cpu),
-			(uint16_t)(a->ops[i+3].msrcmd),
-			( int32_t)(a->ops[i+3].err),
-			(uint32_t)(a->ops[i+3].msr),
-			(uint64_t)(a->ops[i+3].msrdata)
+			(uint16_t)(d->ops[i].cpu),
+			(uint16_t)(d->ops[i].msrcmd),
+			( int32_t)(d->ops[i].err),
+			(uint32_t)(d->ops[i].msr),
+			(uint64_t)(d->ops[i].msrdata)
 		
 		);
 	}	
 }
 
 void
-batch_ioctl( struct msr_batch_array *a ){
+batch_ioctl( struct msr_batch_array *a, struct msr_batch_array *b, struct msr_batch_array *d ){
 	static bool Initialized=0;
 	static int batch_fd;
 	if( !Initialized ){
@@ -184,8 +175,39 @@ batch_ioctl( struct msr_batch_array *a ){
 		Initialized = 0;
 		return;
 	}
+
+	if( NULL == b ){
+		close( batch_fd );
+		Initialized = 0;
+		return;
+	}
+
+	if( NULL == d ){
+		close( batch_fd );
+		Initialized = 0;
+		return;
+	}
+	fprintf(stderr, "Num ops batch a: %d\n", a->numops);
+	fprintf(stderr, "Num ops batch b: %d\n", b->numops);
+	fprintf(stderr, "Num ops batch d: %d\n", d->numops);
 	int rc = ioctl( batch_fd, X86_IOC_MSR_BATCH, a );
 	if( -1 == rc ){
+		fprintf( stderr, "%s:%d ioctl on /dev/cpu/msr_batch failed, errno=%d.\n",
+				__FILE__, __LINE__, errno );
+		perror( "perror() reports: " );
+		exit( -1 );
+	}
+
+	int rc_b = ioctl( batch_fd, X86_IOC_MSR_BATCH, b );
+	if( -1 == rc_b ){
+		fprintf( stderr, "%s:%d ioctl on /dev/cpu/msr_batch failed, errno=%d.\n",
+				__FILE__, __LINE__, errno );
+		perror( "perror() reports: " );
+		exit( -1 );
+	}
+
+	int rc_d  = ioctl( batch_fd, X86_IOC_MSR_BATCH, d );
+	if( -1 == rc_d ){
 		fprintf( stderr, "%s:%d ioctl on /dev/cpu/msr_batch failed, errno=%d.\n",
 				__FILE__, __LINE__, errno );
 		perror( "perror() reports: " );
@@ -194,23 +216,25 @@ batch_ioctl( struct msr_batch_array *a ){
 }
 
 void
-telemeter_init( struct msr_batch_array *a ){
-	init_poll_energy( a );
-	a->numops=5000;		// 1k per second, max is ONE_GiB/sizeof(msr_batch_array) ~ 15M.
+telemeter_init( struct msr_batch_array *a, struct msr_batch_array *b, struct msr_batch_array *d ){
+	init_poll_energy( a, b, d );
+	a->numops=5000;
+	b->numops = 5000;
+	d->numops = 5000;	// 1k per second, max is ONE_GiB/sizeof(msr_batch_array) ~ 15M.
 }
 
 double
-telemeter( struct msr_batch_array *a ){
+telemeter( struct msr_batch_array *a, struct msr_batch_array *b, struct msr_batch_array *d ){
 	struct timeval start, stop;
 	gettimeofday( &start, NULL );
-	batch_ioctl( a );
+	batch_ioctl( a, b, d );
 	gettimeofday( &stop, NULL );
 	return (stop.tv_sec - start.tv_sec) + (stop.tv_usec - start.tv_usec)/1000000.0;
 }
 
 void
 telemeter_finalize(){
-	batch_ioctl( NULL );
+	batch_ioctl( NULL, NULL, NULL  );
 }
 
 void
@@ -289,10 +313,12 @@ payload_finalize(struct crypt *c){
 int main(){
 	int tid;
 	struct msr_batch_array a;
+	struct msr_batch_array b;
+	struct msr_batch_array d;
 	struct crypt c;
 	double elapsed[2];
 
-	telemeter_init( &a );
+	telemeter_init( &a, &b, &d );
 	payload_init( &c );
 
 	c.key[1] = 0x11;
@@ -302,7 +328,7 @@ int main(){
 	{
 		tid = omp_get_thread_num();
 		if( 0 == tid ){
-			elapsed[0] = telemeter( &a );
+			elapsed[0] = telemeter( &a, &b, &d );
 		}else{
 			elapsed[1] = payload( &c );
 		}
@@ -313,7 +339,7 @@ int main(){
 	telemeter_finalize();
 	payload_finalize( &c );
 
-	print_msr_data( &a );
+	print_msr_data( &a, &b, &d );
 
 	return 0;
 }
