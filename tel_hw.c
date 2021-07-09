@@ -146,12 +146,12 @@ init_poll_energy( struct msr_batch_array *a, struct msr_batch_array *b, struct m
 }
 
 void
-print_msr_data( struct msr_batch_array *a, struct msr_batch_array *b, struct msr_batch_array *d, int *hw ){
-	fprintf( stdout, "HW cpu msrcmd err msr msrdata wmask aperf0 mperf0 aperf1 mperf1 msrdata1 cpu619 msrcmd619 err619 msr619 msrdata619 619aperf0 619mperf0 619aperf1 619mperf1 619msrdata1 cpu198 msrcmd198 err198 msr198 msrdata198 \n" );
+print_msr_data( struct msr_batch_array *a, struct msr_batch_array *b, struct msr_batch_array *d ){
+	fprintf( stdout, "cpu msrcmd err msr msrdata wmask aperf0 mperf0 aperf1 mperf1 msrdata1 cpu619 msrcmd619 err619 msr619 msrdata619 619aperf0 619mperf0 619aperf1 619mperf1 619msrdata1 cpu198 msrcmd198 err198 msr198 msrdata198 \n" );
 	for( uint64_t i=0; i<a->numops; i++ ){
 		fprintf( stdout, 
 			//cpu        msrcmd        err       msr           msrdata        wmask
-			"%d " "%02"PRIu16" 0x%04"PRIx16" %"PRId32" 0x%08"PRIx32" %lf"" 0x%016"PRIx64
+			"%02"PRIu16" 0x%04"PRIx16" %"PRId32" 0x%08"PRIx32" %lf"" 0x%016"PRIx64
 			//aperf0         mperf0         aperf1         mperf1         msrdata1
 			" 0x%016"PRIx64" 0x%016"PRIx64" 0x%016"PRIx64" 0x%016"PRIx64" %lf"
 		    //cpu619     //msrcmd619    //err619  //msr619     //msrdata619   
@@ -162,7 +162,6 @@ print_msr_data( struct msr_batch_array *a, struct msr_batch_array *b, struct msr
 			" %02"PRIu16" 0x%04"PRIx16" %"PRId32" 0x%08"PRIx32" 0x%016"PRIx64	
 		  
 			"\n",
-			(int)	hw,
 			(uint16_t)(a->ops[i].cpu),
 			(uint16_t)(a->ops[i].msrcmd),
 			( int32_t)(a->ops[i].err),
@@ -278,7 +277,7 @@ telemeter_finalize(){
 }
 
 void
-payload_init( struct crypt *c, int *hw ){
+payload_init( struct crypt *c ){
 	// Allocate 1GiB for cleartext and encrypted text.
 	c->clear_text = allocate_GiB_pages( 1 );	
 	c->encrypted_text = allocate_GiB_pages( 2 );	// Massive overkill.
@@ -307,8 +306,7 @@ payload_init( struct crypt *c, int *hw ){
 		c->key[i] = keygen(c->key, KEY_LENGTH, 20);
 	}
 	*/
-	fprintf(stdout, "got here %s::%d", __FILE__, __LINE__);
-	keygen(c->key, KEY_LENGTH,(uint16_t) hw);
+	keygen(c->key, KEY_LENGTH, 40);
 /*	printf("the key is 0x");
 	for(int i = 0; i < KEY_LENGTH; i++){
 		printf("%02x", c->key[i]);
@@ -368,39 +366,37 @@ payload_finalize(struct crypt *c){
 }
 
 int main(){
-	
 	int tid;
 	struct msr_batch_array a;
 	struct msr_batch_array b;
 	struct msr_batch_array d;
 	struct crypt c;
-	double elapsed[11];
-	int hw = 0;
+	double elapsed[1];
+
 	telemeter_init( &a, &b, &d );
-	for( hw = 0; hw <= 1000; hw+=100){
-		payload_init( &c, &hw );
-	}
+//	payload_init( &c );
+
 	c.key[0] |= 0xf0;
 
-	omp_set_num_threads(11);
-#pragma omp parallel shared(elapsed) num_threads(11)
+	omp_set_num_threads(1);
+#pragma omp parallel shared(elapsed) num_threads(1)
 	{
 		tid = omp_get_thread_num();
 		if( 0 == tid ){
 			elapsed[0] = telemeter( &a, &b, &d );
-		}else{
-			for(int i = 1; i < 11; i++){  		
-				elapsed[i] = payload( &c );
-			}
 		}
+		/*
+		else{
+			elapsed[1] = payload( &c );
+		}
+		*/
 	}
 	fprintf( stderr, "%s:%d Telemeter elapsed seconds:  %lf\n", __FILE__, __LINE__, elapsed[0] );
-	fprintf( stderr, "%s:%d Payload elapsed seconds:    %lf\n", __FILE__, __LINE__, elapsed[1] );
+//	fprintf( stderr, "%s:%d Payload elapsed seconds:    %lf\n", __FILE__, __LINE__, elapsed[1] );
 	telemeter_finalize();
-	for(int i = 0; i < 10; i++){
-		payload_finalize( &c );
-		print_msr_data( &a, &b, &d, &hw );
-	}
+//	payload_finalize( &c );
+
+	print_msr_data( &a, &b, &d );
 
 	return 0;
 }
