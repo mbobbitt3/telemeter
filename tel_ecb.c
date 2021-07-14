@@ -143,12 +143,16 @@ init_poll_energy( struct msr_batch_array *a, struct msr_batch_array *b, struct m
 	}
 	for(uint64_t i = 0; i < d->numops; i++){
 		d->ops[i].cpu		= TELEMETRY_CPU;
-		d->ops[i].msrcmd	= 0x3;	// Read + A/MPERF before and after.
+		d->ops[i].msrcmd	= 0xf;	// Read + A/MPERF before and after.
 		d->ops[i].err		= 0;
-		d->ops[i].msr		= 0x198;// PERF_STATUS
+		d->ops[i].msr		= 0x1b1;// THERM_PACKAGE_STATUS
 		d->ops[i].msrdata	= 0;
 		d->ops[i].wmask		= 0;
-
+		d->ops[i].aperf0	= 0;
+		d->ops[i].mperf0	= 0;
+		d->ops[i].aperf1	= 0;
+		d->ops[i].mperf1	= 0;
+		d->ops[i].msrdata1	= 0;
 	}
 }
 
@@ -157,7 +161,7 @@ print_msr_data( struct msr_batch_array *a, struct msr_batch_array *b, struct msr
 	static int init = 0;
 	if(!init){
 		init = 1;
-		fprintf( stdout, "HW cpu msrcmd err msr msrdata wmask aperf0 mperf0 aperf1 mperf1 msrdata1 cpu619 msrcmd619 err619 msr619 msrdata619 619aperf0 619mperf0 619aperf1 619mperf1 619msrdata1 cpu198 msrcmd198 err198 msr198 msrdata198 \n" );
+		fprintf( stdout, "HW cpu msrcmd err msr msrdata wmask aperf0 mperf0 aperf1 mperf1 msrdata1 cpu619 msrcmd619 err619 msr619 msrdata619 619aperf0 619mperf0 619aperf1 619mperf1 619msrdata1 cpu1b1 msrcmd1b1 err1b1 msr1b1 msrdata1b1 \n" );
 	}
 	for( uint64_t i=0; i<a->numops; i++ ){
 		fprintf( stdout, 
@@ -171,7 +175,8 @@ print_msr_data( struct msr_batch_array *a, struct msr_batch_array *b, struct msr
 			" 0x%016"PRIx64" 0x%016"PRIx64" 0x%016"PRIx64" 0x%016"PRIx64" %lf"
 		  	//cpu198     //msrcmd198    //err198  //msr198     //msrdata198   
 			" %02"PRIu16" 0x%04"PRIx16" %"PRId32" 0x%08"PRIx32" 0x%016"PRIx64	
-		  
+			//aperf0         mperf0         aperf1         mperf1         msrdata1
+			" 0x%016"PRIx64" 0x%016"PRIx64" 0x%016"PRIx64" 0x%016"PRIx64" 0x%016" PRIx64
 			"\n",
 			(int)(c->hw),
 			(uint16_t)(a->ops[i].cpu),
@@ -201,8 +206,12 @@ print_msr_data( struct msr_batch_array *a, struct msr_batch_array *b, struct msr
 			(uint16_t)(d->ops[i].msrcmd),
 			( int32_t)(d->ops[i].err),
 			(uint32_t)(d->ops[i].msr),
-			(uint64_t)(d->ops[i].msrdata)
-		
+			(uint64_t)(d->ops[i].msrdata),
+			(uint64_t)(d->ops[i].aperf0),
+			(uint64_t)(d->ops[i].mperf0),
+			(uint64_t)(d->ops[i].aperf1),
+			(uint64_t)(d->ops[i].mperf1),
+			(uint64_t)(d->ops[i].msrdata1)
 		);
 	}	
 }
