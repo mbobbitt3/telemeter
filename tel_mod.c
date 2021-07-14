@@ -31,7 +31,7 @@
 #define TELEMETRY_CPU (13)		// Run msr batches here.
 #define KEY_LENGTH   (256)		// Must be a multiple of sizeof( long int ) 
 #define IV_LENGTH    (128)		// Must be a multiple of sizeof( long int )
-
+#define NUM_KEYS (10)
 
 
 int
@@ -60,10 +60,11 @@ keygen(uint8_t *buf, uint16_t keylen, uint16_t hw){
 
 struct crypt{
 	unsigned char key[KEY_LENGTH];
-	unsigned char iv[128];
+	unsigned char *iv;
 	unsigned char *clear_text;
 	unsigned char *encrypted_text;
 	EVP_CIPHER_CTX *ctx;
+	uint16_t hw;
 	int out_len;
 	int in_len;
 };
@@ -146,12 +147,16 @@ init_poll_energy( struct msr_batch_array *a, struct msr_batch_array *b, struct m
 }
 
 void
-print_msr_data( struct msr_batch_array *a, struct msr_batch_array *b, struct msr_batch_array *d, int *hw ){
-	fprintf( stdout, "HW cpu msrcmd err msr msrdata wmask aperf0 mperf0 aperf1 mperf1 msrdata1 cpu619 msrcmd619 err619 msr619 msrdata619 619aperf0 619mperf0 619aperf1 619mperf1 619msrdata1 cpu198 msrcmd198 err198 msr198 msrdata198 \n" );
+print_msr_data( struct msr_batch_array *a, struct msr_batch_array *b, struct msr_batch_array *d, struct crypt *c ){
+	static int init = 0;
+	if(!init){
+		init = 1;
+		fprintf( stdout, "HW cpu msrcmd err msr msrdata wmask aperf0 mperf0 aperf1 mperf1 msrdata1 cpu619 msrcmd619 err619 msr619 msrdata619 619aperf0 619mperf0 619aperf1 619mperf1 619msrdata1 cpu198 msrcmd198 err198 msr198 msrdata198 \n" );
+	}
 	for( uint64_t i=0; i<a->numops; i++ ){
 		fprintf( stdout, 
-			//cpu        msrcmd        err       msr           msrdata        wmask
-			"%d " "%02"PRIu16" 0x%04"PRIx16" %"PRId32" 0x%08"PRIx32" %lf"" 0x%016"PRIx64
+			//hw	//cpu        msrcmd        err       msr           msrdata        wmask
+			"%02"PRIu16 " %02"PRIu16" 0x%04"PRIx16" %"PRId32" 0x%08"PRIx32" %lf"" 0x%016"PRIx64
 			//aperf0         mperf0         aperf1         mperf1         msrdata1
 			" 0x%016"PRIx64" 0x%016"PRIx64" 0x%016"PRIx64" 0x%016"PRIx64" %lf"
 		    //cpu619     //msrcmd619    //err619  //msr619     //msrdata619   
@@ -162,7 +167,7 @@ print_msr_data( struct msr_batch_array *a, struct msr_batch_array *b, struct msr
 			" %02"PRIu16" 0x%04"PRIx16" %"PRId32" 0x%08"PRIx32" 0x%016"PRIx64	
 		  
 			"\n",
-			(int)	hw,
+			(int)(c->hw),
 			(uint16_t)(a->ops[i].cpu),
 			(uint16_t)(a->ops[i].msrcmd),
 			( int32_t)(a->ops[i].err),
@@ -227,9 +232,6 @@ batch_ioctl( struct msr_batch_array *a, struct msr_batch_array *b, struct msr_ba
 		Initialized = 0;
 		return;
 	}
-	fprintf(stderr, "Num ops batch a: %d\n", a->numops);
-	fprintf(stderr, "Num ops batch b: %d\n", b->numops);
-	fprintf(stderr, "Num ops batch d: %d\n", d->numops);
 	int rc = ioctl( batch_fd, X86_IOC_MSR_BATCH, a );
 	if( -1 == rc ){
 		fprintf( stderr, "%s:%d ioctl on /dev/cpu/msr_batch failed, errno=%d.\n",
@@ -278,49 +280,36 @@ telemeter_finalize(){
 }
 
 void
-payload_init( struct crypt *c, int *hw ){
+payload_init( struct crypt *c ){
 	// Allocate 1GiB for cleartext and encrypted text.
-	c->clear_text = allocate_GiB_pages( 1 );	
-	c->encrypted_text = allocate_GiB_pages( 2 );	// Massive overkill.
-
-	// Initialize the random number generator.
-	srandom( 13 );
+	static unsigned char *cleartext;
+	static unsigned char *encrypted_text;
+	static int init = 0;
+	static long int iv[IV_LENGTH/sizeof(long int)];
+	if(!init){
+		init = 1;
+		cleartext = allocate_GiB_pages( 1 );	
+		encrypted_text = allocate_GiB_pages( 2 );
+		// Initialize the random number generator.
+		srandom( 13 );
 	
-	// Randomize the cleartext buffer.
-	for( uint64_t i=0; i<(ONE_GiB/sizeof(long int)); i++ ){
-		((long int*)(c->clear_text))[i] = random();
-	}
+		// Randomize the cleartext buffer.
+		for( uint64_t i=0; i<(ONE_GiB/sizeof(long int)); i++ ){
+			((long int*)(cleartext))[i] = random();
+		}
 
-	// Zero out the encrypted text buffer.
-	memset( c->encrypted_text, 0, ONE_GiB );	// Necessary?
-
-	// Set the key to a random number
-	/*
-	for( uint64_t i=0; i<(KEY_LENGTH/sizeof(long int)); i++ ){
-		((long int*)(c->key))[i] = random();
+		// Set the initialization vector to a random number.
+		for( uint64_t i=0; i<(IV_LENGTH/sizeof(long int)); i++ ){
+			iv[i] = random();
+		}
+		// Zero out the encrypted text buffer.
+		memset(encrypted_text, 0, ONE_GiB );	// Necessary?
 	}
-	*/
-	/*
-	uint8_t *buf = malloc(KEY_LENGTH);
-	assert(buf != NULL);
-	for( uint64_t i=0; i<(KEY_LENGTH/sizeof(long int)); i++ ){
-		c->key[i] = keygen(c->key, KEY_LENGTH, 20);
-	}
-	*/
-	fprintf(stdout, "got here %s::%d", __FILE__, __LINE__);
-	keygen(c->key, KEY_LENGTH,(uint16_t) hw);
-/*	printf("the key is 0x");
-	for(int i = 0; i < KEY_LENGTH; i++){
-		printf("%02x", c->key[i]);
-	}	
-
-	printf("\n");
-*/
-	// Set the initialization vector to a random number.
-	for( uint64_t i=0; i<(IV_LENGTH/sizeof(long int)); i++ ){
-		((long int*)(c->iv))[i] = random();
-	}
-
+	c->clear_text = cleartext; 
+	c->encrypted_text = encrypted_text;
+	c->iv = (unsigned char *) iv;
+	keygen(c->key, KEY_LENGTH, c->hw);
+	
 	// Get a new context.
 	c->ctx = EVP_CIPHER_CTX_new();
 	if( !(c->ctx) ){
@@ -373,34 +362,37 @@ int main(){
 	struct msr_batch_array a;
 	struct msr_batch_array b;
 	struct msr_batch_array d;
-	struct crypt c;
-	double elapsed[11];
-	int hw = 0;
+	struct crypt c[NUM_KEYS];
+	double elapsed_keys[NUM_KEYS];
+	double elapsed_msr[1];
+	int key_id = 0;
 	telemeter_init( &a, &b, &d );
-	for( hw = 0; hw <= 1000; hw+=100){
-		payload_init( &c, &hw );
+	for( key_id = 0; key_id < NUM_KEYS; key_id++){
+		c[key_id].hw = key_id * 100;	
+		payload_init( &c[key_id]);
 	}
-	c.key[0] |= 0xf0;
 
-	omp_set_num_threads(11);
-#pragma omp parallel shared(elapsed) num_threads(11)
-	{
-		tid = omp_get_thread_num();
-		if( 0 == tid ){
-			elapsed[0] = telemeter( &a, &b, &d );
-		}else{
-			for(int i = 1; i < 11; i++){  		
-				elapsed[i] = payload( &c );
+	omp_set_num_threads(2);
+
+	for(key_id = 0; key_id < NUM_KEYS; key_id++){  		
+		#pragma omp parallel num_threads(2)
+		{
+			tid = omp_get_thread_num();
+			if( 0 == tid ){
+				elapsed_msr[0] = telemeter( &a, &b, &d );
+			}else{
+				elapsed_keys[key_id] = payload( &c[key_id] );
 			}
 		}
+
+		fprintf( stderr, "%s:%d Telemeter elapsed seconds:  %lf\n", __FILE__, __LINE__, elapsed_msr[0] );
+		fprintf( stderr, "%s:%d Payload elapsed seconds:    %lf\n", __FILE__, __LINE__, elapsed_keys[key_id] );
+		print_msr_data( &a, &b, &d, &c[key_id] );
+		payload_finalize( &c[key_id] );
 	}
-	fprintf( stderr, "%s:%d Telemeter elapsed seconds:  %lf\n", __FILE__, __LINE__, elapsed[0] );
-	fprintf( stderr, "%s:%d Payload elapsed seconds:    %lf\n", __FILE__, __LINE__, elapsed[1] );
+
+
 	telemeter_finalize();
-	for(int i = 0; i < 10; i++){
-		payload_finalize( &c );
-		print_msr_data( &a, &b, &d, &hw );
-	}
 
 	return 0;
 }
