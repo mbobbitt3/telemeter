@@ -2,7 +2,7 @@ telemeter: t.c
 	clang-10 -Wall -Werror -fopenmp -std=c17 -g -O0 -o telemeter t.c -lhugetlbfs -lomp -lcrypto
 
 telmod: tel_mod.c
-	clang-10 -Wall -Werror -fopenmp -std=c17 -g -O0 -o tel_mod tel_mod.c -lhugetlbfs -lomp -lcrypto
+	clang-10 -Wall -fopenmp -std=c17 -g -O0 -o tel_mod tel_mod.c -lomp -lhugetlbfs -lcrypto
 
 telecb: tel_ecb.c
 	clang-10 -Wall -Werror -fopenmp -std=c17 -g -O0 -o tel_ecb tel_ecb.c -lhugetlbfs -lomp -lcrypto
@@ -21,11 +21,8 @@ run:
 
 
 run21: 
-	OMP_PLACES=cores OMP_PROC_BIND=close numactl --physcpubind=2,12 ./tel_mod > 0_ff.R
-	OMP_PLACES=cores OMP_PROC_BIND=close numactl --physcpubind=2,12 ./tel_mod > 0_11.R
-	OMP_PLACES=cores OMP_PROC_BIND=close numactl --physcpubind=2,12 ./tel_mod > 1_ff.R
-	OMP_PLACES=cores OMP_PROC_BIND=close numactl --physcpubind=2,12 ./tel_mod > 2_ff.R
-	OMP_PLACES=cores OMP_PROC_BIND=close numactl --physcpubind=2,12 ./tel_mod > 1_11.R
+	OMP_NUM_THREADS=2 OMP_PLACES=cores OMP_PROC_BIND=close numactl --physcpubind=13,14 ./tel_mod > 0_ff.R
+#	OMP_PLACES=cores OMP_PROC_BIND=close taskset --cpu-list 2 ./tel_mod > 0_ff.R
 
 run31: 
 	OMP_PLACES=cores OMP_PROC_BIND=close numactl --physcpubind=2,12 ./tel_ecb > 0_ff.R

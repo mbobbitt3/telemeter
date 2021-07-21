@@ -27,11 +27,15 @@ struct msr_batch_op
     __u64 msrdata; // In/Out: Input/Result to/from operation.  
     		   //   Name retained for backwards compatibility.
     __u64 wmask;   // Out: Write mask applied to wrmsr
+	__u64 pkgTherm0; // Out: PACKAGE_THERM_STATUS at the beginning of the command.
+	__u64 dramEnergy0; // Out: DRAM_ENERGY_STATUS at the beginning of the command.
     __u64 aperf0;  // Out: APERF at the beginning of the command.
     __u64 mperf0;  // Out: MPERF at the beginning of the command.
     __u64 aperf1;  // Out: APERF at the end of the command.
     __u64 mperf1;  // Out: MPERF at the end of the command.
-    __u64 msrdata1;// Out: Value at the end of the command.
+	__u64 pkgTherm1; // Out: PACKAGE_THERM_STATUS at the end of the command.
+	__u64 dramEnergy1; // Out: DRAM_ENERGY_STATUS at the end of the command.
+    __u64 msrdata1; // Out: Value at the end of the command.
 };
 
 /* Flags for msrcmd:
@@ -44,20 +48,6 @@ struct msr_batch_op
  *                and mperf0 before reading the target msr.
  * 0x0008       If rdmsr, store APERF and MPERF values in aperf1
  *                and mperf1 after reading the target msr.
- *
- * 0x1 | 0x2 | 0x4 | 0x8 = 0xf
- *  b0001
- *| b0010
- *| b0100
- *| b1000
- *-------
- *  b1111	
- *
- *  b????	b????
- * &b0001	b0010
- * ======	=====
- *  b000?	b00?0 
- *
  *
  */
 
