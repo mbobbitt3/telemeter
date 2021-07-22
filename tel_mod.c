@@ -144,7 +144,7 @@ print_msr_data( struct msr_batch_array *a, struct crypt *c, int run){
 			//	run		hw			cpu        msrcmd        err       msr      msrdata   wmask			
 			"%d" " %02"PRIu16 " %02"PRIu16 " %02"PRIu16" 0x%04"PRId32" %"PRIx32" %lf" " 0x%016"PRIx64
 			//pkgTherm0		//dramEnergy0	//aperf0         mperf0         aperf1         mperf1    pkgTherm  dramEnergy msrdata1
-			" 0x%016" PRIx64 " %lf" " 0x%16" PRIx64" 0x%016"PRIx64" 0x%016"PRIx64" 0x%016"PRIx64" 0x%016"PRIx64 " %lf" " %lf"
+			" 0x%016" PRIx64 " %lf" " 0x%016" PRIx64" 0x%016"PRIx64" 0x%016"PRIx64" 0x%016"PRIx64" 0x%016"PRIx64 " %lf" " %lf"
 			"\n",
 			run,
 			c->hw,
@@ -319,13 +319,13 @@ int main(){
 				#pragma omp parallel num_threads(2)
 				{
 						tid = omp_get_thread_num();
-						cpu_num = sched_getcpu();
 						switch( tid ){
 							case 0: elapsed_msr[0] = telemeter( &(a[0]) );      break;
 							case 1: elapsed_keys[key_id] = payload(&c[key_id]);	break; 
 							default: assert(0);                             	break;
 						}		
 
+						cpu_num = sched_getcpu();
 						fprintf(stderr, "Thread %3d is running on CPU %3d\n", tid, cpu_num);
 				}
 			

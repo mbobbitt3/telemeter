@@ -21,8 +21,8 @@ run:
 
 
 run21: 
-	OMP_NUM_THREADS=2 OMP_PLACES=cores OMP_PROC_BIND=close numactl --physcpubind=13,14 ./tel_mod > 0_ff.R
-#	OMP_PLACES=cores OMP_PROC_BIND=close taskset --cpu-list 2 ./tel_mod > 0_ff.R
+	#OMP_NUM_THREADS=2 OMP_PLACES=cores OMP_PROC_BIND=close numactl --physcpubind=13,14 ./tel_mod > 0_ff.R
+	OMP_PLACES=cores OMP_PROC_BIND=close taskset --cpu-list 11,12 ./tel_mod > 0_ff.R
 
 run31: 
 	OMP_PLACES=cores OMP_PROC_BIND=close numactl --physcpubind=2,12 ./tel_ecb > 0_ff.R
